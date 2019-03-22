@@ -250,6 +250,12 @@ class Order(_GettableFaireObj):
             dollar_amount += order_item.calculate_order_item_dollar_amount()
         return dollar_amount
 
+    def calculate_items_quantity(self) -> int:
+        quantity = 0
+        for order_item in self.items_dict.values():
+            quantity += order_item.quantity
+        return quantity
+
 
 class Address:
 
@@ -372,6 +378,7 @@ class OrderProcessor:
         self._print_best_selling_product_option()
         self._print_largest_order_dollar_amount()
         self._print_state_with_most_orders()
+        self._print_biggest_order_by_quantity()
 
     def _print_best_selling_product_option(self):
         products_options_sell_info = {}
@@ -410,6 +417,18 @@ class OrderProcessor:
             print("None order sold yet")
         else:
             print("State with most orders is  \"{}\". It has {} orders".format(state_with_most, state_count))
+
+    def _print_biggest_order_by_quantity(self):
+        # I think that only sold orders should be taken into account
+        order_item_quantity = {}
+        for order in list(filter(lambda o: o.state in Order.SOLD_STATES, self.orders)):
+            order_item_quantity[order] = order.calculate_items_quantity()
+        biggest_order, quantity = self._sort_and_get_first(order_item_quantity, True)
+        if biggest_order is None:
+            print("None order sold yet")
+        else:
+            print("Largest order by items quantity has id \"{}\". Quantity is {} units".format(biggest_order.id,
+                                                                                               quantity))
 
     # noinspection PyMethodMayBeStatic
     def _sort_and_get_first(self, obj_dict: Dict[Any, int], reverse=False) -> Tuple[Optional[Any], Any]:
