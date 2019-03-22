@@ -437,7 +437,7 @@ class OrderProcessor:
         if total_orders == 0:
             print("No orders found")
         else:
-            print("Total number of orders is {}. Canceled orders number is {}. The ratio is {} units".format(
+            print("Total number of orders is {}. Canceled orders number is {}. The ratio is {}".format(
                 total_orders, canceled_orders, canceled_orders/total_orders * 1.0))
 
     # noinspection PyMethodMayBeStatic
