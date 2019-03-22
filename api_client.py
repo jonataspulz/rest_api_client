@@ -379,6 +379,7 @@ class OrderProcessor:
         self._print_largest_order_dollar_amount()
         self._print_state_with_most_orders()
         self._print_biggest_order_by_quantity()
+        self._print_ratio_of_cancelled_orders()
 
     def _print_best_selling_product_option(self):
         products_options_sell_info = {}
@@ -389,7 +390,7 @@ class OrderProcessor:
                 products_options_sell_info[product_option] = count + order_item.quantity
         best_selling, number = self._sort_and_get_first(products_options_sell_info, True)
         if best_selling is None:
-            print("None product sold yet")
+            print("No products sold yet")
         else:
             print("Best selling product has id \"{}\" and name \"{}\". Sold {} units".format(
                 best_selling.id, (lambda n: n if n is not None else "")(best_selling.name), number))
@@ -401,7 +402,7 @@ class OrderProcessor:
             orders_dollar_amount[order] = order.calculate_order_dollar_amount()
         largest_order, dollar_amount = self._sort_and_get_first(orders_dollar_amount, True)
         if largest_order is None:
-            print("None order sold yet")
+            print("No orders sold yet")
         else:
             print("Largest order dollar amount has id \"{}\". Value is {} dollars".format(largest_order.id,
                                                                                           dollar_amount))
@@ -414,7 +415,7 @@ class OrderProcessor:
             state_order_count[order.address.state] = count + 1
         state_with_most, state_count = self._sort_and_get_first(state_order_count, True)
         if state_with_most is None:
-            print("None order sold yet")
+            print("No orders sold yet")
         else:
             print("State with most orders is  \"{}\". It has {} orders".format(state_with_most, state_count))
 
@@ -425,10 +426,19 @@ class OrderProcessor:
             order_item_quantity[order] = order.calculate_items_quantity()
         biggest_order, quantity = self._sort_and_get_first(order_item_quantity, True)
         if biggest_order is None:
-            print("None order sold yet")
+            print("No orders sold yet")
         else:
             print("Largest order by items quantity has id \"{}\". Quantity is {} units".format(biggest_order.id,
                                                                                                quantity))
+
+    def _print_ratio_of_cancelled_orders(self):
+        total_orders = len(self.orders)
+        canceled_orders = len(list(filter(lambda o: o.state in Order.OrderState.CANCELED.value, self.orders)))
+        if total_orders == 0:
+            print("No orders found")
+        else:
+            print("Total number of orders is {}. Canceled orders number is {}. The ratio is {} units".format(
+                total_orders, canceled_orders, canceled_orders/total_orders * 1.0))
 
     # noinspection PyMethodMayBeStatic
     def _sort_and_get_first(self, obj_dict: Dict[Any, int], reverse=False) -> Tuple[Optional[Any], Any]:
