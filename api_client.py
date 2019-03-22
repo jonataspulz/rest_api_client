@@ -210,6 +210,11 @@ class Order(_GettableFaireObj):
         BACKORDERED = "BACKORDERED"
         CANCELED = "CANCELED"
 
+    SOLD_STATES = {OrderState.PROCESSING.value,
+                   OrderState.PRE_TRANSIT.value,
+                   OrderState.IN_TRANSIT.value,
+                   OrderState.DELIVERED.value}
+
     def __init__(self, parsed_obj: Dict):
         super().__init__(parsed_obj)
         self.state = parsed_obj["state"]
@@ -354,13 +359,13 @@ class OrderProcessor:
         InventoryLevelsUpdater.update_inventory_levels(po_quantity_to_update, self._request)
 
     def _calculate_and_print_metrics(self):
-        self._find_best_selling_product_option()
+        self._print_best_selling_product_option()
+        # self._print_largest_order_dollar_amount()
+        # self._print_state_with_most_orders()
 
-    def _find_best_selling_product_option(self):
+    def _print_best_selling_product_option(self):
         products_options_sell_info = {}
-        for order in list(filter(lambda o: o.state in {
-                          Order.OrderState.PROCESSING.value, Order.OrderState.PRE_TRANSIT.value,
-                          Order.OrderState.IN_TRANSIT.value, Order.OrderState.DELIVERED.value}, self.orders)):
+        for order in list(filter(lambda o: o.state in Order.SOLD_STATES, self.orders)):
             for order_item in order.items_dict.values():
                 product_option = self.products_dict[order_item.product_id].options_dict[order_item.product_option_id]
                 count = products_options_sell_info.setdefault(product_option, 0)
@@ -373,6 +378,12 @@ class OrderProcessor:
             idx = sorted(range(0, len(product_options)), key=counts.__getitem__, reverse=True)[0]
             print("Best selling product has id \"{}\" and name \"{}\"".format(
                 product_options[idx].id, (lambda n: n if n is not None else "")(product_options[idx].name)))
+
+    def _print_largest_order_dollar_amount(self):
+        raise NotImplementedError
+
+    def _print_state_with_most_orders(self):
+        raise NotImplementedError
 
 
 if __name__ == "__main__":
