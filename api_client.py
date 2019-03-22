@@ -354,7 +354,25 @@ class OrderProcessor:
         InventoryLevelsUpdater.update_inventory_levels(po_quantity_to_update, self._request)
 
     def _calculate_and_print_metrics(self):
-        pass
+        self._find_best_selling_product_option()
+
+    def _find_best_selling_product_option(self):
+        products_options_sell_info = {}
+        for order in list(filter(lambda o: o.state in {
+                          Order.OrderState.PROCESSING.value, Order.OrderState.PRE_TRANSIT.value,
+                          Order.OrderState.IN_TRANSIT.value, Order.OrderState.DELIVERED.value}, self.orders)):
+            for order_item in order.items_dict.values():
+                product_option = self.products_dict[order_item.product_id].options_dict[order_item.product_option_id]
+                count = products_options_sell_info.setdefault(product_option, 0)
+                products_options_sell_info[product_option] = count + order_item.quantity
+        if not products_options_sell_info:
+            print("None product sold yet")
+        else:
+            product_options = list(products_options_sell_info.keys())
+            counts = list(products_options_sell_info.values())
+            idx = sorted(range(0, len(product_options)), key=counts.__getitem__, reverse=True)[0]
+            print("Best selling product has id \"{}\" and name \"{}\"".format(
+                product_options[idx].id, (lambda n: n if n is not None else "")(product_options[idx].name)))
 
 
 if __name__ == "__main__":
