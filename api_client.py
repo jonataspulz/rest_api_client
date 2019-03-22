@@ -3,7 +3,7 @@ import json
 import sys
 import traceback
 from enum import Enum, unique
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.error import URLError
 from urllib.parse import urlunparse
 from urllib.request import Request, urlopen
@@ -195,6 +195,10 @@ class OrderItem(_FaireObj):
         self.created_at = parsed_obj["created_at"]
         self.updated_at = parsed_obj["updated_at"]
 
+    def calculate_order_item_dollar_amount(self) -> float:
+        # Should I include the tester price?
+        return self.quantity * self.price_cents/100.0
+
 
 class Order(_GettableFaireObj):
     ITEM_TYPE = "orders"
@@ -239,6 +243,12 @@ class Order(_GettableFaireObj):
             post_dict[order_item.id] = {"available_quantity": items_to_backorder[order_item].available_quantity,
                                         "discontinued": False}
         request.post_http_request(self.get_obj_uri() + "/items/availability", json.dumps(post_dict))
+
+    def calculate_order_dollar_amount(self) -> float:
+        dollar_amount = 0
+        for order_item in self.items_dict:
+            dollar_amount += order_item.calculate_order_item_dollar_amount()
+        return dollar_amount
 
 
 class Address:
@@ -370,20 +380,31 @@ class OrderProcessor:
                 product_option = self.products_dict[order_item.product_id].options_dict[order_item.product_option_id]
                 count = products_options_sell_info.setdefault(product_option, 0)
                 products_options_sell_info[product_option] = count + order_item.quantity
-        if not products_options_sell_info:
+        best_selling, number = self._sort_and_get_first(products_options_sell_info, True)
+        if best_selling is None:
             print("None product sold yet")
         else:
-            product_options = list(products_options_sell_info.keys())
-            counts = list(products_options_sell_info.values())
-            idx = sorted(range(0, len(product_options)), key=counts.__getitem__, reverse=True)[0]
-            print("Best selling product has id \"{}\" and name \"{}\"".format(
-                product_options[idx].id, (lambda n: n if n is not None else "")(product_options[idx].name)))
+            print("Best selling product has id \"{}\" and name \"{}\". Sold {} units".format(
+                best_selling.id, (lambda n: n if n is not None else "")(best_selling.name), number))
 
     def _print_largest_order_dollar_amount(self):
-        raise NotImplementedError
+        # I think that only sold orders should be taken into account
+        orders_dollar_amount = {}
+        for order in list(filter(lambda o: o.state in Order.SOLD_STATES, self.orders)):
+            orders_dollar_amount[order.id] = order.calculate_order_dollar_amount()
 
     def _print_state_with_most_orders(self):
         raise NotImplementedError
+
+    # noinspection PyMethodMayBeStatic
+    def _sort_and_get_first(self, obj_dict: Dict[_FaireObj, int], reverse=False) -> Tuple[Optional[_FaireObj], Any]:
+        if not obj_dict:
+            return None, None
+        else:
+            objs = list(obj_dict.keys())
+            counts = list(obj_dict.values())
+            idx = sorted(range(0, len(objs)), key=counts.__getitem__, reverse=reverse)[0]
+            return objs[idx], counts[idx]
 
 
 if __name__ == "__main__":
