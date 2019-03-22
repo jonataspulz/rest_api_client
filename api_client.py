@@ -371,7 +371,7 @@ class OrderProcessor:
     def _calculate_and_print_metrics(self):
         self._print_best_selling_product_option()
         self._print_largest_order_dollar_amount()
-        # self._print_state_with_most_orders()
+        self._print_state_with_most_orders()
 
     def _print_best_selling_product_option(self):
         products_options_sell_info = {}
@@ -400,10 +400,19 @@ class OrderProcessor:
                                                                                           dollar_amount))
 
     def _print_state_with_most_orders(self):
-        raise NotImplementedError
+        # I think that only sold orders should be taken into account
+        state_order_count = {}
+        for order in list(filter(lambda o: o.state in Order.SOLD_STATES, self.orders)):
+            count = state_order_count.setdefault(order.address.state, 0)
+            state_order_count[order.address.state] = count + 1
+        state_with_most, state_count = self._sort_and_get_first(state_order_count, True)
+        if state_with_most is None:
+            print("None order sold yet")
+        else:
+            print("State with most orders is  \"{}\". It has {} orders".format(state_with_most, state_count))
 
     # noinspection PyMethodMayBeStatic
-    def _sort_and_get_first(self, obj_dict: Dict[_FaireObj, int], reverse=False) -> Tuple[Optional[_FaireObj], Any]:
+    def _sort_and_get_first(self, obj_dict: Dict[Any, int], reverse=False) -> Tuple[Optional[Any], Any]:
         if not obj_dict:
             return None, None
         else:
