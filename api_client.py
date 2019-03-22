@@ -246,7 +246,7 @@ class Order(_GettableFaireObj):
 
     def calculate_order_dollar_amount(self) -> float:
         dollar_amount = 0
-        for order_item in self.items_dict:
+        for order_item in self.items_dict.values():
             dollar_amount += order_item.calculate_order_item_dollar_amount()
         return dollar_amount
 
@@ -370,7 +370,7 @@ class OrderProcessor:
 
     def _calculate_and_print_metrics(self):
         self._print_best_selling_product_option()
-        # self._print_largest_order_dollar_amount()
+        self._print_largest_order_dollar_amount()
         # self._print_state_with_most_orders()
 
     def _print_best_selling_product_option(self):
@@ -391,7 +391,12 @@ class OrderProcessor:
         # I think that only sold orders should be taken into account
         orders_dollar_amount = {}
         for order in list(filter(lambda o: o.state in Order.SOLD_STATES, self.orders)):
-            orders_dollar_amount[order.id] = order.calculate_order_dollar_amount()
+            orders_dollar_amount[order] = order.calculate_order_dollar_amount()
+        largest_order, dollar_amount = self._sort_and_get_first(orders_dollar_amount, True)
+        if largest_order is None:
+            print("None order sold yet")
+        else:
+            print("Largest order dollar amount has id \"{}\". Value is {} dollars".format(largest_order.id, dollar_amount))
 
     def _print_state_with_most_orders(self):
         raise NotImplementedError
