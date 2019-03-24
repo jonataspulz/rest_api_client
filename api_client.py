@@ -2,11 +2,18 @@
 import json
 import sys
 import traceback
+from datetime import datetime
 from enum import Enum, unique
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.error import URLError
 from urllib.parse import urlunparse
 from urllib.request import Request, urlopen
+
+from sale_prediction import Sale, SalePredictor
+
+
+def to_datetime(iso_datetime: str) -> datetime:
+    return datetime.strptime(iso_datetime, "%Y%m%dT%H%M%S.000Z")
 
 
 class _FaireRequest:
@@ -223,7 +230,7 @@ class Order(_GettableFaireObj):
         super().__init__(parsed_obj)
         self.state = parsed_obj["state"]
         self.ship_after = parsed_obj["ship_after"]
-        self.items_dict = {oi.id: oi for oi in [OrderItem(it) for it in parsed_obj["items"]]}
+        self.items_dict: Dict[str, OrderItem] = {oi.id: oi for oi in [OrderItem(it) for it in parsed_obj["items"]]}
         self.shipments = parsed_obj["shipments"]
         self.address = Address(parsed_obj["address"])
         self.created_at = parsed_obj["created_at"]
@@ -232,6 +239,10 @@ class Order(_GettableFaireObj):
     @classmethod
     def get_obj_path(cls) -> str:
         return cls.URL_PATH
+
+    @property
+    def date_time(self) -> datetime:
+        return to_datetime(self.created_at)
 
     def is_new(self) -> bool:
         return self.state == self._OrderState.NEW.value
@@ -322,7 +333,6 @@ class OrderProcessor:
             products = list(filter(lambda product: product.brand_id == self.brand, products))
         self.products_dict: Dict[str, Product] = {product.id: product for product in products}
         self.orders: List[Order] = self._consume_item(Order.ITEM_TYPE)
-        pass
 
     def process_orders(self):
         # self._test_update_inventory()
@@ -332,8 +342,14 @@ class OrderProcessor:
     def print_metrics(self):
         self._calculate_and_print_metrics()
 
-    def get_products_sell_series(self):
-        pass
+    def get_products_sale_series(self) -> Dict[str, List[Sale]]:
+        po_sales = {}
+        for order in self.orders:
+            for order_item in order.items_dict.values():
+                po_sales.setdefault(order_item.product_option_id, []).\
+                    append(Sale(order_item.product_option_id, order.date_time,
+                                order_item.quantity, order.address.state))
+        return po_sales
 
     def _test_update_inventory(self):
         po_quantity_to_update = {}
@@ -476,6 +492,8 @@ if __name__ == "__main__":
         order_processor = OrderProcessor(http_key, brand_token)
         order_processor.process_orders()
         order_processor.print_metrics()
-        order_processor.get_products_sell_series()
+        foreseen_sales = SalePredictor(order_processor.get_products_sale_series())\
+            .predict_next_month_sales(datetime.today())
+        pass
     except Exception:
         print(traceback.format_exc())
