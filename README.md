@@ -8,7 +8,7 @@ python api_client.py API_KEY brand
 
 DEPENDENCIES:
   scipy, statsmodels
-  Intall using "python -m pip install scipy" and "python -m pip install statsmodels"
+  Install using "python -m pip install scipy" and "python -m pip install statsmodels"
   
  v0.1.0 Faire code challenge version
   
