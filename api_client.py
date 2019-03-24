@@ -205,7 +205,7 @@ class Order(_GettableFaireObj):
     URL_PATH = "/orders"
 
     @unique
-    class OrderState(Enum):
+    class _OrderState(Enum):
         NEW = "NEW"
         PROCESSING = "PROCESSING"
         PRE_TRANSIT = "PRE_TRANSIT"
@@ -214,10 +214,10 @@ class Order(_GettableFaireObj):
         BACKORDERED = "BACKORDERED"
         CANCELED = "CANCELED"
 
-    SOLD_STATES = {OrderState.PROCESSING.value,
-                   OrderState.PRE_TRANSIT.value,
-                   OrderState.IN_TRANSIT.value,
-                   OrderState.DELIVERED.value}
+    SOLD_STATES = {_OrderState.PROCESSING.value,
+                   _OrderState.PRE_TRANSIT.value,
+                   _OrderState.IN_TRANSIT.value,
+                   _OrderState.DELIVERED.value}
 
     def __init__(self, parsed_obj: Dict):
         super().__init__(parsed_obj)
@@ -233,9 +233,18 @@ class Order(_GettableFaireObj):
     def get_obj_path(cls) -> str:
         return cls.URL_PATH
 
+    def is_new(self) -> bool:
+        return self.state == self._OrderState.NEW.value
+
+    def is_sold(self) -> bool:
+        return self.state in self.SOLD_STATES
+
+    def is_canceled(self) -> bool:
+        return self.state == self._OrderState.CANCELED.value
+
     def accept_order(self, request: _FaireRequest):
         request.put_http_request(self.get_obj_uri() + "/processing")
-        self.state = Order.OrderState.PROCESSING
+        self.state = self._OrderState.PROCESSING.value
 
     def backorder_items(self, items_to_backorder: Dict[OrderItem, ProductOption], request):
         post_dict = {}
@@ -243,6 +252,7 @@ class Order(_GettableFaireObj):
             post_dict[order_item.id] = {"available_quantity": items_to_backorder[order_item].available_quantity,
                                         "discontinued": False}
         request.post_http_request(self.get_obj_uri() + "/items/availability", json.dumps(post_dict))
+        self.state = self._OrderState.BACKORDERED.value
 
     def calculate_order_dollar_amount(self) -> float:
         dollar_amount = 0
@@ -303,23 +313,27 @@ class InventoryLevelsUpdater(_FaireObj):
 
 class OrderProcessor:
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, brand: str):
         self._request = _FaireRequest(api_key)
 
-        self.products_dict = None
-        self.orders = None
-        self.brand = None
-
-    def process_orders(self, brand=None):
         self.brand = brand
         products = self._consume_item(Product.ITEM_TYPE)
         if self.brand is not None:
             products = list(filter(lambda product: product.brand_id == self.brand, products))
-        self.products_dict = {product.id: product for product in products}
-        self.orders = self._consume_item(Order.ITEM_TYPE)
+        self.products_dict: Dict[str, Product] = {product.id: product for product in products}
+        self.orders: List[Order] = self._consume_item(Order.ITEM_TYPE)
+        pass
+
+    def process_orders(self):
         # self._test_update_inventory()
-        self._process_orders()
+        for order in self._filter_and_sort_orders_by_creation():
+            self._update_order_status_and_product_inventory(order)
+
+    def print_metrics(self):
         self._calculate_and_print_metrics()
+
+    def get_products_sell_series(self):
+        pass
 
     def _test_update_inventory(self):
         po_quantity_to_update = {}
@@ -337,13 +351,8 @@ class OrderProcessor:
         print("Not known item type {}".format(item_type))
         raise Exception
 
-    def _process_orders(self):
-        for order in self._filter_and_sort_orders_by_creation():
-            self._update_order_status_and_product_inventory(order)
-
     def _filter_and_sort_orders_by_creation(self) -> List[Order]:
-        orders_to_process = list(filter(lambda order: order.state in [Order.OrderState.NEW.value],
-                                 self.orders))
+        orders_to_process = list(filter(lambda order: order.is_new(), self.orders))
         orders_to_process = sorted(orders_to_process, key=lambda order: order.created_at)
         return list(orders_to_process)
 
@@ -383,7 +392,7 @@ class OrderProcessor:
 
     def _print_best_selling_product_option(self):
         products_options_sell_info = {}
-        for order in list(filter(lambda o: o.state in Order.SOLD_STATES, self.orders)):
+        for order in list(filter(lambda o: o.is_sold(), self.orders)):
             for order_item in order.items_dict.values():
                 product_option = self.products_dict[order_item.product_id].options_dict[order_item.product_option_id]
                 count = products_options_sell_info.setdefault(product_option, 0)
@@ -398,7 +407,7 @@ class OrderProcessor:
     def _print_largest_order_dollar_amount(self):
         # I think that only sold orders should be taken into account
         orders_dollar_amount = {}
-        for order in list(filter(lambda o: o.state in Order.SOLD_STATES, self.orders)):
+        for order in list(filter(lambda o: o.is_sold(), self.orders)):
             orders_dollar_amount[order] = order.calculate_order_dollar_amount()
         largest_order, dollar_amount = self._sort_and_get_first(orders_dollar_amount, True)
         if largest_order is None:
@@ -410,7 +419,7 @@ class OrderProcessor:
     def _print_state_with_most_orders(self):
         # I think that only sold orders should be taken into account
         state_order_count = {}
-        for order in list(filter(lambda o: o.state in Order.SOLD_STATES, self.orders)):
+        for order in list(filter(lambda o: o.is_sold(), self.orders)):
             count = state_order_count.setdefault(order.address.state, 0)
             state_order_count[order.address.state] = count + 1
         state_with_most, state_count = self._sort_and_get_first(state_order_count, True)
@@ -422,7 +431,7 @@ class OrderProcessor:
     def _print_biggest_order_by_quantity(self):
         # I think that only sold orders should be taken into account
         order_item_quantity = {}
-        for order in list(filter(lambda o: o.state in Order.SOLD_STATES, self.orders)):
+        for order in list(filter(lambda o: o.is_sold(), self.orders)):
             order_item_quantity[order] = order.calculate_items_quantity()
         biggest_order, quantity = self._sort_and_get_first(order_item_quantity, True)
         if biggest_order is None:
@@ -433,7 +442,7 @@ class OrderProcessor:
 
     def _print_ratio_of_cancelled_orders(self):
         total_orders = len(self.orders)
-        canceled_orders = len(list(filter(lambda o: o.state in Order.OrderState.CANCELED.value, self.orders)))
+        canceled_orders = len(list(filter(lambda o: o.is_canceled(), self.orders)))
         if total_orders == 0:
             print("No orders found")
         else:
@@ -441,7 +450,7 @@ class OrderProcessor:
                 total_orders, canceled_orders, canceled_orders/total_orders * 1.0))
 
     # noinspection PyMethodMayBeStatic
-    def _sort_and_get_first(self, obj_dict: Dict[Any, int], reverse=False) -> Tuple[Optional[Any], Any]:
+    def _sort_and_get_first(self, obj_dict: Dict[Any, Any], reverse=False) -> Tuple[Optional[Any], Any]:
         if not obj_dict:
             return None, None
         else:
@@ -464,7 +473,9 @@ if __name__ == "__main__":
         brand_token = "b_d2481b88"
     # noinspection PyBroadException
     try:
-        order_processor = OrderProcessor(http_key)
-        order_processor.process_orders(brand_token)
+        order_processor = OrderProcessor(http_key, brand_token)
+        order_processor.process_orders()
+        order_processor.print_metrics()
+        order_processor.get_products_sell_series()
     except Exception:
         print(traceback.format_exc())
