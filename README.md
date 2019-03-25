@@ -12,6 +12,6 @@ DEPENDENCIES:
   
  v0.1.0 Faire code challenge version
   
- v0.2.0 Hackthon version:
+ v0.2.0 Hackathon version:
  It groups the sales by the address state and try to predict the next month sales using Vector Autoregression
 
