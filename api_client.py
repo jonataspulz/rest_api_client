@@ -344,7 +344,7 @@ class OrderProcessor:
 
     def get_products_sale_series(self) -> Dict[str, List[Sale]]:
         po_sales = {}
-        for order in self.orders:
+        for order in filter(lambda o: o.is_sold(), self.orders):
             for order_item in order.items_dict.values():
                 po_sales.setdefault(order_item.product_option_id, []).\
                     append(Sale(order_item.product_option_id, order.date_time,

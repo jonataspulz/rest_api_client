@@ -8,6 +8,7 @@ python api_client.py API_KEY brand
 
 DEPENDENCIES:
   scipy, statsmodels
+  
   Install using "python -m pip install scipy" and "python -m pip install statsmodels"
   
  v0.1.0 Faire code challenge version
@@ -15,3 +16,6 @@ DEPENDENCIES:
  v0.2.0 Hackathon version:
  It groups the sales by the address state and try to predict the next month sales using Vector Autoregression
 
+ v0.2.1 Fix bugs and improve output data
+   - Fix bug when indexing the sales quantity for the VAR;
+   - Improves program output, linking each product option and its predicted sales.
